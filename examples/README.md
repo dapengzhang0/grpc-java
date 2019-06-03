@@ -25,9 +25,71 @@ before trying out the examples.
 
 - [Json serialization](src/main/java/io/grpc/examples/advanced)
 
-- [Google Authentication](example-gauth/GOOGLE_AUTH_EXAMPLE.md)
+- <details>
+  <summary>Hedging</summary>
+  
+  The [hedging example](src/main/java/io/grpc/examples/hedging) demonstrates that enabling hedging
+  can reduce tail latency. (Users should note that enabling hedging may introduce other overheads;
+  and in some scenarios, such as when some server resource gets exhausted for a period of time and
+  almost every RPC during that time has high latency or fails, hedging may make things worse.
+  Setting a throttle in the service config is recommended to protect the server from too many
+  inappropriate retry or hedging requests.)
+  
+  The server and the client in the example are basically the same as those in the
+  [hello world](src/main/java/io/grpc/examples/helloworld) example, except that the server mimics a
+  long tail of latency, and the client sends 1000 requests and can turn on and off hedging.
+  
+  To mimic the latency, the server randomly delays the RPC handling by 2 seconds at 10% chance, 5
+  seconds at 5% chance, and 10 seconds at 1% chance.
+  
+  When running the client enabling the following hedging policy
+  
+  ```json
+        "hedgingPolicy":{
+          "maxAttempts":3,
+          "hedgingDelay":"1s",
+          "nonFatalStatusCodes":[
+            "UNAVAILABLE"
+          ]
+        }
+  ```
+  A summary of latency in the client log is typically like the following
+  
+  ```text
+  [Hedging enabled]
+  ========================
+  50% latency: 0ms
+  90% latency: 6ms
+  95% latency: 1,003ms
+  99% latency: 2,002ms
+  99.9% latency: 2,011ms
+  Max latency: 5,272ms
+  ========================
+  ```
 
-### To build the examples
+  See [the section below](#to-build-the-examples) for how to build and run the example. The
+  executables for the server and the client are `hedging-hello-world-server` and
+  `hedging-hello-world-client`.
+  
+  To disable hedging, set environment variable `DISABLE_HEDGING=true` before
+  running the client. A summary of latency in the client log is typically like the following 
+  
+  ```text
+  Total RPC sent: 2,000. Total RPC failed: 0
+  [Hedging disabled]
+  ========================
+  50% latency: 0ms
+  90% latency: 6ms
+  95% latency: 2,006ms
+  99% latency: 5,006ms
+  99.9% latency: 10,004ms
+  Max latency: 10,005ms
+  ========================
+  ```
+
+</details>
+
+### <a name="to-build-the-examples"></a> To build the examples
 
 1. **[Install gRPC Java library SNAPSHOT locally, including code generation plugin](../COMPILING.md) (Only need this step for non-released versions, e.g. master HEAD).**
 
@@ -93,6 +155,8 @@ $ bazel-bin/hello-world-client
   + [TLS examples](example-tls)
 
   + [ALTS examples](example-alts)
+
+- [Google Authentication](example-gauth/GOOGLE_AUTH_EXAMPLE.md)
 
 - [Kotlin examples](example-kotlin)
 
