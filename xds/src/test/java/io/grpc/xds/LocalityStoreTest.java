@@ -54,6 +54,7 @@ import io.grpc.LoadBalancerProvider;
 import io.grpc.LoadBalancerRegistry;
 import io.grpc.SynchronizationContext;
 import io.grpc.internal.FakeClock;
+import io.grpc.internal.FakeClock.TaskFilter;
 import io.grpc.xds.ClientLoadCounter.LoadRecordingStreamTracerFactory;
 import io.grpc.xds.ClientLoadCounter.MetricsRecordingListener;
 import io.grpc.xds.InterLocalityPicker.WeightedChildPicker;
@@ -129,6 +130,13 @@ public class LocalityStoreTest {
   private final Map<String, Helper> childHelpers = new HashMap<>();
   private final Map<String, FakeOrcaReportingHelperWrapper> childHelperWrappers = new HashMap<>();
   private final FakeClock fakeClock = new FakeClock();
+
+  private final TaskFilter deactivationTaskFilter = new TaskFilter() {
+    @Override
+    public boolean shouldAccept(Runnable runnable) {
+      return runnable.toString().contains("DeletionTask");
+    }
+  };
 
   private final LoadBalancerProvider lbProvider = new LoadBalancerProvider() {
 
@@ -622,7 +630,8 @@ public class LocalityStoreTest {
     pickerFactory.nextIndex = 0;
     assertThat(subchannelPickerCaptor.getValue().pickSubchannel(pickSubchannelArgs).getSubchannel())
         .isEqualTo(subchannel1);
-    assertThat(fakeClock.getPendingTasks()).hasSize(2); // sz3, sz4 pending removal
+    // sz3, sz4 pending removal
+    assertThat(fakeClock.getPendingTasks(deactivationTaskFilter)).hasSize(2);
 
     // verify lb1, lb3, and lb4 never shutdown and never changed since created
     verify(lb1, never()).shutdown();
@@ -635,7 +644,7 @@ public class LocalityStoreTest {
     assertThat(loadBalancers.get("sz4")).isSameInstanceAs(lb4);
 
     localityStore.reset();
-    assertThat(fakeClock.getPendingTasks()).isEmpty();
+    assertThat(fakeClock.getPendingTasks(deactivationTaskFilter)).isEmpty();
     verify(lb1).shutdown();
     verify(newLb2).shutdown();
     verify(lb3).shutdown();
@@ -831,6 +840,61 @@ public class LocalityStoreTest {
     verify(loadBalancers.get("sz2")).shutdown();
     verify(loadStatsStore).removeLocality(locality1);
     verify(loadStatsStore).removeLocality(locality2);
+  }
+
+  /**
+   * Tests the scenario of the following sequence of events.
+   * EDS update: P0 sz1; P1 sz2; P2 sz3; P3 sz4 - P0 C, P1 N/A, P2 N/A, P3 N/A
+   * 10 secs passes P0 still CONNECTING - P0 C, P1 C, P2 N/A, P3 N/A
+   * 5 secs passes P1 in TRANSIENT_FAILURE - P0 C, P1 F, P2 C, P3 N/A
+   * 5 secs passes P2 READY - P0 C, P1 F, P2 R, P3 N/A
+   * P0 gets READY - P0 R, P1 F&D, P2 R&D, P3 N/A
+   * P1 gets READY - P0 R, P1 R&D, P2 R&D, P3 N/A
+   * 10 min passes P0 in TRANSIENT_FAILURE - P0 F, P1 R, P2 R&D, P3 N/A
+   * 5 min passes - P0 F, P1 R, P2 N/A, P3 N/A
+   * P1 in TRANSIENT_FAILURE - P0 F, P1 F, P2 C, P3 N/A
+   * 10 secs passes - P0 F, P1 F, P2 C, P3 C
+   * P1, P3 gets READY - P0 F, P1 R, P2 C, P3 R
+   * EDS update, localities moved: P0 sz1, sz3; P1 sz4; P2 sz2 - P0 C, P1 R, P2 R&D
+   * 15 min passes - P0 C, P1 R, P2 N/A
+   * EDS update, locality removed: P0 sz1, sz3, - P0 C, P1 N/A, sz2 R&D
+   * sz3 gets READY - P0 R, P1 N/A, sz2 R&D
+   * EDS update, locality comes back and another removed: P0 sz1, P1 sz2 - P0 C, P1 R
+   */
+  @Test
+  public void multipriority() {
+    // EDS update: P0 sz1; P1 sz2; P2 sz3; P3 sz4 - P0 C, P1 N/A, P2 N/A, P3 N/A
+    LocalityInfo localityInfo1 =
+        new LocalityInfo(ImmutableList.of(lbEndpoint11, lbEndpoint12), 1, 0);
+    LocalityInfo localityInfo2 =
+        new LocalityInfo(ImmutableList.of(lbEndpoint21, lbEndpoint22), 2, 1);
+    LocalityInfo localityInfo3 =
+        new LocalityInfo(ImmutableList.of(lbEndpoint31, lbEndpoint32), 3, 2);
+    LocalityInfo localityInfo4 =
+        new LocalityInfo(ImmutableList.of(lbEndpoint41, lbEndpoint42), 3, 3);
+    final Map<XdsLocality, LocalityInfo> localityInfoMap = ImmutableMap.of(
+        locality1, localityInfo1, locality2, localityInfo2, locality3, localityInfo3, locality4,
+        localityInfo4);
+    syncContext.execute(new Runnable() {
+      @Override
+      public void run() {
+        localityStore.updateLocalityStore(localityInfoMap);
+      }
+    });
+    assertThat(loadBalancers.keySet()).containsExactly("sz1");
+    LoadBalancer lb1 = loadBalancers.get("sz1");
+    InOrder inOrder = inOrder(lb1, helper);
+    ArgumentCaptor<ResolvedAddresses> resolvedAddressesCaptor1 =
+        ArgumentCaptor.forClass(ResolvedAddresses.class);
+    inOrder.verify(helper).updateBalancingState(CONNECTING, BUFFER_PICKER);
+    inOrder.verify(lb1).handleResolvedAddresses(resolvedAddressesCaptor1.capture());
+    assertThat(resolvedAddressesCaptor1.getValue().getAddresses()).containsExactly(eag11, eag12);
+
+    // 10 sec passes P0 still CONNECTING - P0 C, P1 C, P2 N/A, P3 N/A
+    fakeClock.forwardTime(9, TimeUnit.SECONDS);
+    assertThat(loadBalancers.keySet()).containsExactly("sz1");
+    fakeClock.forwardTime(1, TimeUnit.SECONDS);
+    assertThat(loadBalancers.keySet()).containsExactly("sz1", "sz2");
   }
 
   private static final class FakeLoadStatsStore implements LoadStatsStore {
