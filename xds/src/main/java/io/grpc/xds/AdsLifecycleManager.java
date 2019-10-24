@@ -31,6 +31,7 @@ import io.grpc.xds.XdsClient.EndpointWatchers;
 import io.grpc.xds.XdsResponseReader.StreamActivityWatcher;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import javax.annotation.CheckForNull;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -123,17 +124,21 @@ final class AdsLifecycleManager {
       }
     }
 
+    long delayNanos;
     if (firstResponseReceived) {
       // Reset the backoff sequence if balancer has sent the initial response
       adsRpcRetryPolicy = backoffPolicyProvider.get();
       // Retry immediately
-      syncCtx.execute(new AdsRpcRetryTask());
-      return;
+      delayNanos = 0;
+    } else {
+      delayNanos = Math.max(
+          adsRpcRetryPolicy.nextBackoffNanos() - retryStopwatch.elapsed(TimeUnit.NANOSECONDS), 0);
     }
 
+    XdsClient.logger.log(Level.FINE, "XdsClient stream closed, retry in {0} ns", delayNanos);
     adsRpcRetryTimer = syncCtx.schedule(
         new AdsRpcRetryTask(),
-        adsRpcRetryPolicy.nextBackoffNanos() - retryStopwatch.elapsed(TimeUnit.NANOSECONDS),
+        delayNanos,
         TimeUnit.NANOSECONDS,
         timerService);
   }
