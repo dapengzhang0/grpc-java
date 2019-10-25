@@ -71,6 +71,7 @@ final class AdsLifecycleManager {
     this.timerService = timerService;
     this.stopwatchSupplier = stopwatchSupplier;
     this.backoffPolicyProvider = backoffPolicyProvider;
+    this.adsRpcRetryPolicy = backoffPolicyProvider.get();
   }
 
   void start() {
