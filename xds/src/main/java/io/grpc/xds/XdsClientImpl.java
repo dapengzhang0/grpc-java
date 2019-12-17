@@ -699,11 +699,7 @@ final class XdsClientImpl extends XdsClient {
         errorMessage = "Cluster without any locality endpoint.";
         break;
       }
-      // The policy.disable_overprovisioning field must be set to true.
-      if (!assignment.getPolicy().getDisableOverprovisioning()) {
-        errorMessage = "Cluster requires overprovisioning.";
-        break;
-      }
+      // TODO: check disable_overprovisioning field
       for (io.envoyproxy.envoy.api.v2.endpoint.LocalityLbEndpoints localityLbEndpoints
           : assignment.getEndpointsList()) {
         // The lb_endpoints field for LbEndpoint must contain at least one entry.
