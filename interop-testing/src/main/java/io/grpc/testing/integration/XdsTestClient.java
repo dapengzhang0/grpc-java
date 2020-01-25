@@ -74,7 +74,22 @@ public final class XdsTestClient {
   /**
    * The main application allowing this client to be launched from the command line.
    */
+  @SuppressWarnings("CatchAndPrintStackTrace")
   public static void main(String[] args) {
+    try {
+      String loggingConfig =
+          "handlers=java.util.logging.ConsoleHandler\n"
+              + "io.grpc.xds.level=FINEST\n"
+              + "io.grpc.ChannelLogger.level=FINEST\n"
+              + "java.util.logging.ConsoleHandler.level=FINEST\n"
+              + "java.util.logging.ConsoleHandler.formatter=java.util.logging.SimpleFormatter";
+      java.util.logging.LogManager.getLogManager()
+          .readConfiguration(
+              new java.io.ByteArrayInputStream(
+                  loggingConfig.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (Throwable t) {
+      t.printStackTrace();
+    }
     final XdsTestClient client = new XdsTestClient();
     client.parseArgs(args);
     Runtime.getRuntime()
