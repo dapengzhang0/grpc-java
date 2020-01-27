@@ -1147,6 +1147,7 @@ final class ManagedChannelImpl extends ManagedChannel implements
           // Ignore the case of newState == SHUTDOWN for now.
           if (newState != SHUTDOWN) {
             channelLogger.log(ChannelLogLevel.INFO, "Entering {0} state", newState);
+            channelLogger.log(ChannelLogLevel.INFO, "Picker is updated to {0}", newPicker);
             channelStateManager.gotoState(newState);
           }
         }
