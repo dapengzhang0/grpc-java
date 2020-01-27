@@ -185,10 +185,9 @@ public final class XdsTestClient {
   }
 
 
-  private void runQps() throws InterruptedException, ExecutionException, TimeoutException {
+  private void runQps() throws InterruptedException, ExecutionException {
     final SettableFuture<Void> failure = SettableFuture.create();
     final class PeriodicRpc implements Runnable {
-      final AtomicLong messageIds = new AtomicLong();
 
       @Override
       public void run() {
@@ -226,6 +225,9 @@ public final class XdsTestClient {
 
               @Override
               public void onClose(Status status, Metadata trailers) {
+                if (!status.isOk()) {
+                  logger.log(Level.WARNING, "Greeting RPC failed with status {0}", status);
+                }
                 for (XdsStatsWatcher watcher : savedWatchers) {
                   watcher.rpcCompleted(requestId, hostname);
                 }
