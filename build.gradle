@@ -1,4 +1,5 @@
 plugins {
+    id "ca.cutterslade.analyze" version "1.4.0" apply false
     id "com.android.application" apply false // Necessary for Android plugin to find its classes
     id "com.android.library" apply false
     id "com.google.osdetector" apply false
@@ -560,4 +561,8 @@ subprojects {
             // annotationExcludes = ['@io.grpc.ExperimentalApi']
         }
     }
+}
+
+allprojects {
+    apply plugin: 'ca.cutterslade.analyze'
 }
