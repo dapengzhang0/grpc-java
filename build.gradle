@@ -1,5 +1,5 @@
 plugins {
-    id "ca.cutterslade.analyze" version "1.4.0" apply false
+    id "ca.cutterslade.analyze" version "1.4.1" apply false
     id "com.android.application" apply false // Necessary for Android plugin to find its classes
     id "com.android.library" apply false
     id "com.google.osdetector" apply false
@@ -564,5 +564,7 @@ subprojects {
 }
 
 allprojects {
+    apply plugin: 'java'
     apply plugin: 'ca.cutterslade.analyze'
+    tasks.analyzeTestClassesDependencies.enabled = false
 }
