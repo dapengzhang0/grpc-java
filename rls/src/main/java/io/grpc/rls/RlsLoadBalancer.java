@@ -24,6 +24,8 @@ import io.grpc.ChannelLogger.ChannelLogLevel;
 import io.grpc.ConnectivityState;
 import io.grpc.LoadBalancer;
 import io.grpc.Status;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.annotation.Nullable;
 
 /**
@@ -31,6 +33,7 @@ import javax.annotation.Nullable;
  */
 final class RlsLoadBalancer extends LoadBalancer {
 
+  private static final Logger logger = Logger.getLogger(RlsLoadBalancer.class.getName());
   private final Helper helper;
   @VisibleForTesting
   CachingRlsLbClientBuilderProvider cachingRlsLbClientBuilderProvider =
@@ -42,10 +45,12 @@ final class RlsLoadBalancer extends LoadBalancer {
 
   RlsLoadBalancer(Helper helper) {
     this.helper = checkNotNull(helper, "helper");
+    logger.log(Level.SEVERE, "Rls lb created. Authority: {0}", helper.getAuthority());
   }
 
   @Override
   public void handleResolvedAddresses(ResolvedAddresses resolvedAddresses) {
+    logger.log(Level.SEVERE, "Received resolution result: {0}", resolvedAddresses);
     LbPolicyConfiguration lbPolicyConfiguration =
         (LbPolicyConfiguration) resolvedAddresses.getLoadBalancingPolicyConfig();
     checkNotNull(lbPolicyConfiguration, "Missing rls lb config");
@@ -82,6 +87,7 @@ final class RlsLoadBalancer extends LoadBalancer {
 
   @Override
   public void handleNameResolutionError(final Status error) {
+    logger.log(Level.SEVERE, "Received resolution error: {0}", error);
     class ErrorPicker extends SubchannelPicker {
       @Override
       public PickResult pickSubchannel(PickSubchannelArgs args) {
@@ -106,6 +112,7 @@ final class RlsLoadBalancer extends LoadBalancer {
 
   @Override
   public void shutdown() {
+    logger.log(Level.SEVERE, "Rls lb shutdown");
     if (routeLookupClient != null) {
       routeLookupClient.close();
       routeLookupClient = null;

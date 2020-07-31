@@ -64,6 +64,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -77,6 +79,7 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 final class CachingRlsLbClient {
 
+  private static final Logger logger = Logger.getLogger(CachingRlsLbClient.class.getName());
   private static final Converter<RouteLookupRequest, io.grpc.lookup.v1.RouteLookupRequest>
       REQUEST_CONVERTER = new RlsProtoConverters.RouteLookupRequestConverter().reverse();
   private static final Converter<RouteLookupResponse, io.grpc.lookup.v1.RouteLookupResponse>
@@ -117,6 +120,7 @@ final class CachingRlsLbClient {
   private final RefCountedChildPolicyWrapperFactory refCountedChildPolicyWrapperFactory;
 
   private CachingRlsLbClient(Builder builder) {
+    logger.log(Level.SEVERE, "creating CachingRlsLbClient");
     helper = checkNotNull(builder.helper, "helper");
     scheduledExecutorService = helper.getScheduledExecutorService();
     synchronizationContext = helper.getSynchronizationContext();
@@ -152,6 +156,7 @@ final class CachingRlsLbClient {
     refCountedChildPolicyWrapperFactory =
         new RefCountedChildPolicyWrapperFactory(
             childLbHelperProvider, new BackoffRefreshListener());
+    logger.log(Level.SEVERE, "CachingRlsLbClient created");
   }
 
   private static ImmutableMap<String, Object> getDirectpathServiceConfig() {
@@ -171,26 +176,32 @@ final class CachingRlsLbClient {
   private ListenableFuture<RouteLookupResponse> asyncRlsCall(RouteLookupRequest request) {
     final SettableFuture<RouteLookupResponse> response = SettableFuture.create();
     if (throttler.shouldThrottle()) {
+      logger.log(Level.SEVERE, "throttled");
       response.setException(new ThrottledException());
       return response;
     }
+    io.grpc.lookup.v1.RouteLookupRequest routeLookupRequest = REQUEST_CONVERTER.convert(request);
+    logger.log(Level.SEVERE, "Sending RouteLookupRequest: {0}", routeLookupRequest);
     rlsStub.withDeadlineAfter(callTimeoutNanos, TimeUnit.NANOSECONDS)
         .routeLookup(
-            REQUEST_CONVERTER.convert(request),
+            routeLookupRequest,
             new StreamObserver<io.grpc.lookup.v1.RouteLookupResponse>() {
               @Override
               public void onNext(io.grpc.lookup.v1.RouteLookupResponse value) {
+                logger.log(Level.SEVERE, "Received RouteLookupResponse: {0}", value);
                 response.set(RESPONSE_CONVERTER.reverse().convert(value));
               }
 
               @Override
               public void onError(Throwable t) {
+                logger.log(Level.SEVERE, "Error looking up route:", t);
                 response.setException(t);
                 throttler.registerBackendResponse(false);
               }
 
               @Override
               public void onCompleted() {
+                logger.log(Level.SEVERE, "Route lookup completed");
                 throttler.registerBackendResponse(true);
               }
             });
@@ -226,6 +237,7 @@ final class CachingRlsLbClient {
 
   /** Performs any pending maintenance operations needed by the cache. */
   void close() {
+    logger.log(Level.SEVERE, "CachingRlsLbClient closed");
     synchronized (lock) {
       // all childPolicyWrapper will be returned via AutoCleaningEvictionListener
       linkedHashLruCache.close();
