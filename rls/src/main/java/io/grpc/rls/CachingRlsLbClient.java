@@ -32,6 +32,7 @@ import io.grpc.ClientCall;
 import io.grpc.ClientInterceptor;
 import io.grpc.ConnectivityState;
 import io.grpc.ForwardingClientCall.SimpleForwardingClientCall;
+import io.grpc.ForwardingClientCallListener.SimpleForwardingClientCallListener;
 import io.grpc.LoadBalancer;
 import io.grpc.LoadBalancer.Helper;
 import io.grpc.LoadBalancer.PickResult;
@@ -167,7 +168,15 @@ final class CachingRlsLbClient {
             metadata.put(
                 Metadata.Key.of("X-Return-Encrypted-Headers", Metadata.ASCII_STRING_MARSHALLER),
                 "all");
-            delegate().start(listener, metadata);
+            Listener<RespT> forwardingListener =
+                new SimpleForwardingClientCallListener<RespT>(listener) {
+                  @Override
+                  public void onClose(Status status, Metadata trailers) {
+                    logger.log(Level.SEVERE, "Trailers: ", trailers);
+                    delegate().onClose(status, trailers);
+                  }
+                };
+            delegate().start(forwardingListener, metadata);
           }
         };
       }
