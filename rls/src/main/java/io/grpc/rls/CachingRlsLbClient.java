@@ -43,6 +43,7 @@ import io.grpc.NameResolver.ConfigOrError;
 import io.grpc.Status;
 import io.grpc.SynchronizationContext;
 import io.grpc.SynchronizationContext.ScheduledHandle;
+import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.internal.BackoffPolicy;
 import io.grpc.internal.ExponentialBackoffPolicy;
 import io.grpc.internal.TimeProvider;
@@ -138,7 +139,8 @@ final class CachingRlsLbClient {
     RlsRequestFactory requestFactory = new RlsRequestFactory(lbPolicyConfig.getRouteLookupConfig());
     rlsPicker = new RlsPicker(requestFactory);
     ManagedChannelBuilder<?> rlsChannelBuilder =
-        helper.createResolvingOobChannelBuilder(rlsConfig.getLookupService());
+        // helper.createResolvingOobChannelBuilder(rlsConfig.getLookupService());
+        ComputeEngineChannelBuilder.forTarget(rlsConfig.getLookupService());
     logger = helper.getChannelLogger();
     if (enableOobChannelDirectPath) {
       logger.log(
