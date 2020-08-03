@@ -26,7 +26,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import io.grpc.CallOptions;
+import io.grpc.Channel;
+import io.grpc.ClientCall;
+import io.grpc.ClientInterceptor;
 import io.grpc.ConnectivityState;
+import io.grpc.ForwardingClientCall.SimpleForwardingClientCall;
 import io.grpc.LoadBalancer;
 import io.grpc.LoadBalancer.Helper;
 import io.grpc.LoadBalancer.PickResult;
@@ -37,6 +42,7 @@ import io.grpc.LoadBalancerProvider;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Metadata;
+import io.grpc.MethodDescriptor;
 import io.grpc.NameResolver.ConfigOrError;
 import io.grpc.Status;
 import io.grpc.SynchronizationContext;
@@ -144,10 +150,28 @@ final class CachingRlsLbClient {
     if (enableOobChannelDirectPath) {
       rlsChannelBuilder.defaultServiceConfig(getDirectpathServiceConfig());
       rlsChannelBuilder.disableServiceConfigLookUp();
+      logger.log(Level.SEVERE, "rls channel direct path enabled. rls channel service config {0}",
+          getDirectpathServiceConfig());
+    } else {
+      logger.log(Level.SEVERE, "rls channel direct path not enabled");
     }
     rlsChannel = rlsChannelBuilder.build();
     helper.updateBalancingState(ConnectivityState.CONNECTING, rlsPicker);
-    rlsStub = RouteLookupServiceGrpc.newStub(rlsChannel);
+    rlsStub = RouteLookupServiceGrpc.newStub(rlsChannel).withInterceptors(new ClientInterceptor() {
+      @Override
+      public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(
+          MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel next) {
+        return new SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
+          @Override
+          public void start(Listener<RespT> listener, Metadata metadata) {
+            metadata.put(
+                Metadata.Key.of("X-Return-Encrypted-Headers", Metadata.ASCII_STRING_MARSHALLER),
+                "all");
+            delegate().start(listener, metadata);
+          }
+        };
+      }
+    });
     childLbResolvedAddressFactory =
         checkNotNull(builder.resolvedAddressFactory, "resolvedAddressFactory");
     backoffProvider = builder.backoffProvider;
