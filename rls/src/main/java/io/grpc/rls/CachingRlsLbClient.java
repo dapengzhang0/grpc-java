@@ -540,6 +540,8 @@ final class CachingRlsLbClient {
                   childPolicy.getEffectiveChildPolicy(childPolicyWrapper.getTarget()));
 
       LoadBalancer lb = lbProvider.newLoadBalancer(childPolicyWrapper.getHelper());
+      logger.log(Level.SEVERE, "child lb created. Resolved addresses: {0}",
+          childLbResolvedAddressFactory.create(lbConfig.getConfig()));
       lb.handleResolvedAddresses(childLbResolvedAddressFactory.create(lbConfig.getConfig()));
       lb.requestConnection();
     }
