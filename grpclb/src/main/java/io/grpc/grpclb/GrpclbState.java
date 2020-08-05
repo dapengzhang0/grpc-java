@@ -307,6 +307,8 @@ final class GrpclbState {
     if (lbCommChannel == null) {
       lbCommChannel = helper.createOobChannel(
           lbAddressGroup.getAddresses(), lbAddressGroup.getAuthority());
+      logger.log(ChannelLogLevel.DEBUG, "Created grpclb oob channel address={0}, authority={1}",
+          lbAddressGroup.getAddresses(), lbAddressGroup.getAuthority());
     } else if (lbAddressGroup.getAuthority().equals(lbCommChannel.authority())) {
       helper.updateOobChannelAddresses(lbCommChannel, lbAddressGroup.getAddresses());
     } else {
@@ -324,6 +326,8 @@ final class GrpclbState {
     lbStream.start();
     stopwatch.reset().start();
 
+    logger.log(ChannelLogLevel.DEBUG, "Sending initRequest: serviceName={0}",
+        serviceName);
     LoadBalanceRequest initRequest = LoadBalanceRequest.newBuilder()
         .setInitialRequest(InitialLoadBalanceRequest.newBuilder()
             .setName(serviceName).build())
