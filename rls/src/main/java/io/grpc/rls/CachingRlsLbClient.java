@@ -250,7 +250,7 @@ final class CachingRlsLbClient {
    */
   @CheckReturnValue
   final CachedRouteLookupResponse get(final RouteLookupRequest request) {
-    synchronizationContext.throwIfNotInThisSynchronizationContext();
+    // synchronizationContext.throwIfNotInThisSynchronizationContext();
     synchronized (lock) {
       final CacheEntry cacheEntry;
       cacheEntry = linkedHashLruCache.read(request);
