@@ -907,6 +907,9 @@ final class CachingRlsLbClient {
     @Override
     public PickResult pickSubchannel(PickSubchannelArgs args) {
       String[] methodName = args.getMethodDescriptor().getFullMethodName().split("/", 2);
+      logger.log(Level.FINEST,
+          "Creating lookup request for service={0}, method={1}, headers={2}",
+          new Object[]{methodName[0], methodName[1], args.getHeaders()});
       RouteLookupRequest request =
           requestFactory.create(methodName[0], methodName[1], args.getHeaders());
       final CachedRouteLookupResponse response = CachingRlsLbClient.this.get(request);
