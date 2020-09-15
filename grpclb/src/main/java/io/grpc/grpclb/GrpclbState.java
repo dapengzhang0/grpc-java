@@ -797,6 +797,7 @@ final class GrpclbState {
             default:
               pickList = Collections.<RoundRobinEntry>singletonList(
                   new IdleSubchannelEntry(onlyEntry.subchannel, syncContext));
+              onlyEntry.subchannel.requestConnection();
           }
         }
         break;
