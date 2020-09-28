@@ -47,7 +47,7 @@ final class RlsRequestFactory {
 
   RlsRequestFactory(RouteLookupConfig rlsConfig) {
     checkNotNull(rlsConfig, "rlsConfig");
-    this.target = rlsConfig.getValidTargets().get(0);
+    this.target = rlsConfig.getLookupService();
     this.keyBuilderTable = createKeyBuilderTable(rlsConfig);
   }
 
