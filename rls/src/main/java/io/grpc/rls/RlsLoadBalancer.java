@@ -20,12 +20,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import io.grpc.ChannelLogger;
 import io.grpc.ChannelLogger.ChannelLogLevel;
 import io.grpc.ConnectivityState;
 import io.grpc.LoadBalancer;
 import io.grpc.Status;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.annotation.Nullable;
 
 /**
@@ -33,7 +32,7 @@ import javax.annotation.Nullable;
  */
 final class RlsLoadBalancer extends LoadBalancer {
 
-  private static final Logger logger = Logger.getLogger(RlsLoadBalancer.class.getName());
+  private final ChannelLogger logger;
   private final Helper helper;
   @VisibleForTesting
   CachingRlsLbClientBuilderProvider cachingRlsLbClientBuilderProvider =
@@ -45,12 +44,13 @@ final class RlsLoadBalancer extends LoadBalancer {
 
   RlsLoadBalancer(Helper helper) {
     this.helper = checkNotNull(helper, "helper");
-    logger.log(Level.SEVERE, "Rls lb created. Authority: {0}", helper.getAuthority());
+    logger = helper.getChannelLogger();
+    logger.log(ChannelLogLevel.DEBUG, "Rls lb created. Authority: {0}", helper.getAuthority());
   }
 
   @Override
   public void handleResolvedAddresses(ResolvedAddresses resolvedAddresses) {
-    logger.log(Level.SEVERE, "Received resolution result: {0}", resolvedAddresses);
+    logger.log(ChannelLogLevel.DEBUG, "Received resolution result: {0}", resolvedAddresses);
     LbPolicyConfiguration lbPolicyConfiguration =
         (LbPolicyConfiguration) resolvedAddresses.getLoadBalancingPolicyConfig();
     checkNotNull(lbPolicyConfiguration, "Missing rls lb config");
@@ -71,12 +71,12 @@ final class RlsLoadBalancer extends LoadBalancer {
                     new ChildLbResolvedAddressFactory(
                         resolvedAddresses.getAddresses(), resolvedAddresses.getAttributes()))
                 .build();
+        logger.log(
+            ChannelLogLevel.DEBUG, "LbPolicyConfiguration updated to {0}", lbPolicyConfiguration);
       }
       // TODO(creamsoup) allow incremental service config update. for initial use case, it is 
       //  not required.
       this.lbPolicyConfiguration = lbPolicyConfiguration;
-      helper.getChannelLogger()
-          .log(ChannelLogLevel.INFO, "LbPolicyConfiguration updated to {0}", lbPolicyConfiguration);
     }
   }
 
@@ -87,7 +87,7 @@ final class RlsLoadBalancer extends LoadBalancer {
 
   @Override
   public void handleNameResolutionError(final Status error) {
-    logger.log(Level.SEVERE, "Received resolution error: {0}", error);
+    logger.log(ChannelLogLevel.DEBUG, "Received resolution error: {0}", error);
     class ErrorPicker extends SubchannelPicker {
       @Override
       public PickResult pickSubchannel(PickSubchannelArgs args) {
@@ -112,7 +112,7 @@ final class RlsLoadBalancer extends LoadBalancer {
 
   @Override
   public void shutdown() {
-    logger.log(Level.SEVERE, "Rls lb shutdown");
+    logger.log(ChannelLogLevel.DEBUG, "Rls lb shutdown");
     if (routeLookupClient != null) {
       routeLookupClient.close();
       routeLookupClient = null;

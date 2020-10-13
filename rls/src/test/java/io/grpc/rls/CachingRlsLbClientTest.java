@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import io.grpc.Attributes;
 import io.grpc.CallOptions;
+import io.grpc.ChannelLogger;
 import io.grpc.ConnectivityState;
 import io.grpc.EquivalentAddressGroup;
 import io.grpc.ForwardingChannelBuilder;
@@ -45,7 +46,7 @@ import io.grpc.LoadBalancerProvider;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Metadata;
-import io.grpc.NameResolver.Factory;
+import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.SynchronizationContext;
 import io.grpc.inprocess.InProcessChannelBuilder;
@@ -367,7 +368,7 @@ public class CachingRlsLbClientTest {
         /* lookupServiceTimeoutInMillis= */ TimeUnit.SECONDS.toMillis(2),
         /* maxAgeInMillis= */ TimeUnit.SECONDS.toMillis(300),
         /* staleAgeInMillis= */ TimeUnit.SECONDS.toMillis(240),
-        /* cacheSize= */ 1000,
+        /* cacheSizeBytes= */ 1000,
         /* validTargets= */ ImmutableList.of("a valid target"),
         /* defaultTarget= */ "us_east_1.cloudbigtable.googleapis.com");
   }
@@ -418,7 +419,14 @@ public class CachingRlsLbClientTest {
         @Override
         public void handleResolvedAddresses(ResolvedAddresses resolvedAddresses) {
           // TODO: make the picker accessible
-          helper.updateBalancingState(ConnectivityState.READY, mock(SubchannelPicker.class));
+          helper.updateBalancingState(
+              ConnectivityState.READY,
+              new SubchannelPicker() {
+                @Override
+                public PickResult pickSubchannel(PickSubchannelArgs args) {
+                  return PickResult.withSubchannel(mock(Subchannel.class));
+                }
+              });
         }
 
         @Override
@@ -532,7 +540,7 @@ public class CachingRlsLbClientTest {
 
     @Override
     @Deprecated
-    public Factory getNameResolverFactory() {
+    public NameResolver.Factory getNameResolverFactory() {
       throw new UnsupportedOperationException();
     }
 
@@ -549,6 +557,11 @@ public class CachingRlsLbClientTest {
     @Override
     public SynchronizationContext getSynchronizationContext() {
       return syncContext;
+    }
+
+    @Override
+    public ChannelLogger getChannelLogger() {
+      return mock(ChannelLogger.class);
     }
   }
 
