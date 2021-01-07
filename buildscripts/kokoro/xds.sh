@@ -17,10 +17,11 @@ shopt -u extglob
 ../gradlew installDist -x test -PskipCodegen=true -PskipAndroid=true
 popd
 
-git clone -b "${branch}" --single-branch --depth=1 https://github.com/grpc/grpc.git
+git clone --single-branch --branch run-xds-v3-report https://github.com/dapengzhang0/grpc.git
 
 grpc/tools/run_tests/helper_scripts/prep_xds.sh
 
+set -o history -H
 # Test cases "path_matching" and "header_matching" are not included in "all",
 # because not all interop clients in all languages support these new tests.
 #
@@ -34,10 +35,10 @@ JAVA_OPTS=-Djava.util.logging.config.file=grpc-java/buildscripts/xds_logging.pro
     --path_to_server_binary=/java_server/grpc-java/interop-testing/build/install/grpc-interop-testing/bin/xds-test-server \
     --gcp_suffix=$(date '+%s') \
     --verbose \
-    --client_cmd="grpc-java/interop-testing/build/install/grpc-interop-testing/bin/xds-test-client \
+    --client_cmd='grpc-java/interop-testing/build/install/grpc-interop-testing/bin/xds-test-client \
       --server=xds:///{server_uri} \
       --stats_port={stats_port} \
       --qps={qps} \
       {rpcs_to_send} \
-      {metadata_to_send}"
-
+      {metadata_to_send}'
+!! --xds_v3_support

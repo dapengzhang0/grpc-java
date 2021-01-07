@@ -100,7 +100,7 @@ final class DelayedClientTransport implements ManagedClientTransport {
   }
 
   @Override
-  public final Runnable start(final Listener listener) {
+  public final Runnable  start(final Listener listener) {
     this.listener = listener;
     reportTransportInUse = new Runnable() {
         @Override
