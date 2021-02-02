@@ -25,6 +25,7 @@ final class ClientTransportLifecycleManager {
   private final ManagedClientTransport.Listener listener;
   private boolean transportReady;
   private boolean transportShutdown;
+  private Status gracefulShutdownStatus;
   private boolean transportInUse;
   /** null iff !transportShutdown. */
   private Status shutdownStatus;
@@ -53,7 +54,12 @@ final class ClientTransportLifecycleManager {
       return;
     }
     transportShutdown = true;
+    gracefulShutdownStatus = s;
     listener.transportShutdown(s);
+  }
+
+  Status getGracefulShutdownStatus() {
+    return gracefulShutdownStatus;
   }
 
   /** Returns {@code true} if was the first shutdown. */

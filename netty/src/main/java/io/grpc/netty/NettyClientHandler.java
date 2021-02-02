@@ -578,6 +578,19 @@ class NettyClientHandler extends AbstractNettyHandler {
       return;
     }
 
+    if (connection().goAwayReceived() && connection().stream(streamId) == null) {
+      Status goAwayStatus = lifecycleManager.getGracefulShutdownStatus();
+      if (goAwayStatus != null) {
+        command.stream().setNonExistent();
+        // The connection is going away (it is really the GOAWAY case),
+        // just terminate the stream now.
+        command.stream().transportReportStatus(
+            goAwayStatus, RpcProgress.REFUSED, true, new Metadata());
+        promise.setFailure(goAwayStatus.asException());
+        return;
+      }
+    }
+
     NettyClientStream.TransportState stream = command.stream();
     Http2Headers headers = command.headers();
     stream.setId(streamId);

@@ -352,6 +352,83 @@ public class NettyClientHandlerTest extends NettyHandlerTestBase<NettyClientHand
   }
 
   @Test
+  public void receivedGracefulShutdownShouldCancelBufferedStream() throws Exception {
+    ClientStreamListener streamListener2 = mock(ClientStreamListener.class);
+    NettyClientStream.TransportState streamTransportState2 = new TransportStateImpl(
+        handler(),
+        channel().eventLoop(),
+        DEFAULT_MAX_MESSAGE_SIZE,
+        transportTracer);
+    streamTransportState2.setListener(streamListener2);
+
+    receiveMaxConcurrentStreams(1);
+    ChannelFuture future = writeQueue().enqueue(
+        newCreateStreamCommand(grpcHeaders, streamTransportState), true);
+    ChannelFuture future2 = writeQueue().enqueue(
+        newCreateStreamCommand(grpcHeaders, streamTransportState2), true);
+    assertFalse(future.isDone());
+    assertFalse(future2.isDone());
+
+    // GO AWAY
+    channelRead(goAwayFrame(Integer.MAX_VALUE));
+
+    assertTrue(future.isDone());
+    assertFalse(future.isSuccess());
+    assertTrue(future2.isDone());
+    assertFalse(future2.isSuccess());
+    ArgumentCaptor<Status> statusCaptor = ArgumentCaptor.forClass(null);
+    verify(streamListener)
+        .closed(statusCaptor.capture(), any(RpcProgress.class), any(Metadata.class));
+    Status status = statusCaptor.getValue();
+    assertEquals(Status.Code.UNAVAILABLE, status.getCode());
+    assertEquals(
+        "GOAWAY shut down transport. HTTP/2 error code: NO_ERROR", status.getDescription());
+    verify(streamListener2)
+        .closed(statusCaptor.capture(), any(RpcProgress.class), any(Metadata.class));
+    status = statusCaptor.getValue();
+    assertEquals(Status.Code.UNAVAILABLE, status.getCode());
+    assertEquals(
+        "GOAWAY shut down transport. HTTP/2 error code: NO_ERROR", status.getDescription());
+  }
+
+  @Test
+  public void receivedGoAwayOfCurrentActiveStreamIdShouldCancelBufferedStream() throws Exception {
+    ClientStreamListener streamListener2 = mock(ClientStreamListener.class);
+    NettyClientStream.TransportState streamTransportState2 = new TransportStateImpl(
+        handler(),
+        channel().eventLoop(),
+        DEFAULT_MAX_MESSAGE_SIZE,
+        transportTracer);
+    streamTransportState2.setListener(streamListener2);
+
+    receiveMaxConcurrentStreams(1);
+    ChannelFuture future = enqueue(
+        newCreateStreamCommand(grpcHeaders, streamTransportState));
+    ChannelFuture future2 = writeQueue().enqueue(
+        newCreateStreamCommand(grpcHeaders, streamTransportState2), true);
+    assertTrue(future.isDone());
+    assertTrue(future.isSuccess());
+    assertFalse(future2.isDone());
+
+    // GO AWAY
+    channelRead(goAwayFrame(streamId));
+
+    assertTrue(future2.isDone());
+    assertFalse(future2.isSuccess());
+    ArgumentCaptor<Status> statusCaptor = ArgumentCaptor.forClass(null);
+    verify(streamListener, never())
+        .closed(statusCaptor.capture(), any(Metadata.class));
+    verify(streamListener, never())
+        .closed(statusCaptor.capture(), any(RpcProgress.class), any(Metadata.class));
+    verify(streamListener2)
+        .closed(statusCaptor.capture(), any(RpcProgress.class), any(Metadata.class));
+    Status status = statusCaptor.getValue();
+    assertEquals(Status.Code.UNAVAILABLE, status.getCode());
+    assertEquals(
+        "Abrupt GOAWAY closed unsent stream. HTTP/2 error code: NO_ERROR", status.getDescription());
+  }
+
+  @Test
   public void receivedGoAwayShouldNotAffectRacingQueuedStreamId() throws Exception {
     // This command has not actually been executed yet
     ChannelFuture future = writeQueue().enqueue(
