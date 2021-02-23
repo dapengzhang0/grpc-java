@@ -160,7 +160,7 @@ final class CachingRlsLbClient {
     // called to impose the authority security restrictions.
     ManagedChannelBuilder<?> rlsChannelBuilder = helper.createResolvingOobChannelBuilder(
         rlsConfig.getLookupService(), helper.getUnsafeChannelCredentials());
-    rlsChannelBuilder.overrideAuthority(helper.getAuthority());
+    // rlsChannelBuilder.overrideAuthority(helper.getAuthority());
     if (enableOobChannelDirectPath) {
       Map<String, ?> directPathServiceConfig =
           getDirectPathServiceConfig(rlsConfig.getLookupService());
